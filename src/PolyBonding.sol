@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract TokenBondingCurve_Expo is ERC20, Ownable {
     uint256 private _loss;
 
+    uint256 private immutable _constant;
     uint256 private immutable _exponent;
     // The percentage of loss when selling tokens (using two decimals)
     uint256 private constant _LOSS_FEE_PERCENTAGE = 1000;
@@ -14,9 +15,11 @@ contract TokenBondingCurve_Expo is ERC20, Ownable {
      constructor(
         string memory name_,
         string memory symbol_,
-        uint exponent_
+        uint exponent_,
+        uint constant_
     ) ERC20(name_, symbol_) {
         _exponent = exponent_;
+        _constant = constant_;
     }
     function buy(uint256 _amount) external payable {
         uint price = _calculatePriceForBuy(_amount);
@@ -35,6 +38,7 @@ contract TokenBondingCurve_Expo is ERC20, Ownable {
         uint tax = _calculateLoss(_price);
         _burn(msg.sender, _amount);
         _loss += tax;
+
         payable(msg.sender).transfer(_price - tax);
     }
 
@@ -108,8 +112,9 @@ contract TokenBondingCurve_Expo is ERC20, Ownable {
         return areaundercurve(ts)-areaundercurve(tsafter);
     }
 
-    function areaundercurve(uint x)internal view returns(uint256){
-         return (x **(_exponent + 1)) / _exponent + 1 ;
+   function areaundercurve(uint x) internal view returns (uint256) {
+        uint _exp_inc = _exponent + 1;
+        return ((x **_exp_inc) + (_exp_inc * _constant * x)) / _exp_inc ;
     }
     /**
      * @dev Calculates the loss for selling a certain number of tokens.
