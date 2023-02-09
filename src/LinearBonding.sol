@@ -4,8 +4,12 @@ pragma solidity ^0.8.17;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+
+error LowBalance(uint amount,uint balance);
+error LowTokenBalance(uint amount,uint balance);
+
 contract BondingCurveToken is ERC20, Ownable {
-    uint256 private _loss;
+    uint256 private _tax;
 
     uint256 private immutable _slope;
 
@@ -32,9 +36,12 @@ contract BondingCurveToken is ERC20, Ownable {
      */
     function buy(uint256 _amount) external payable {
         uint price = _calculatePriceForBuy(_amount);
-        require(msg.value >= price, "Not enough Ether to buy tokens");
+        if(msg.value<price){
+            revert LowBalance(msg.value,address(msg.sender).balance);
+        }
         _mint(msg.sender, _amount);
-        payable(msg.sender).transfer(msg.value - price);
+        (bool sent,) = payable(msg.sender).call{value: msg.value - price}("");
+        require(sent, "Failed to send Ether");
     }
 
     /**
@@ -42,23 +49,29 @@ contract BondingCurveToken is ERC20, Ownable {
      * @param _amount The number of tokens to sell.
      */
     function sell(uint256 _amount) external {
-        require(balanceOf(msg.sender) >= _amount, "Not enough tokens to sell");
+        if(balanceOf(msg.sender)<_amount){
+            revert LowTokenBalance(_amount,balanceOf(msg.sender));
+        }
         uint256 _price = _calculatePriceForSell(_amount);
         uint tax = _calculateLoss(_price);
         _burn(msg.sender, _amount);
-        _loss += tax;
-
-        payable(msg.sender).transfer(_price - tax);
+        _tax += tax;
+        //sending remaining ether back
+        (bool sent,) = payable(msg.sender).call{value: _price-tax}("");
+        require(sent, "Failed to send Ether");
     }
 
     /**
      * @dev Allows the owner to withdraw the lost ETH.
      */
     function withdraw() external onlyOwner {
-        require(_loss > 0, "No ETH to withdraw");
-        uint amount = _loss;
-        _loss = 0;
-        payable(owner()).transfer(amount);
+        if(_tax<=0){
+            revert LowBalance(_tax,_tax);
+        }
+        uint amount = _tax;
+        _tax = 0;
+        (bool sent,) = payable(msg.sender).call{value:amount}("");
+        require(sent, "Failed to send Ether");
     }
 
     /**
@@ -66,7 +79,7 @@ contract BondingCurveToken is ERC20, Ownable {
      * @return The current price of the token in wei.
      */
     function getCurrentPrice() external view returns (uint) {
-        return _slope * totalSupply();
+        return _calculatePriceForBuy(1);
     }
 
     /**
@@ -99,15 +112,17 @@ contract BondingCurveToken is ERC20, Ownable {
     function _calculatePriceForBuy(
         uint256 _tokensToBuy
     ) private view returns (uint256) {
-        return
-            (_slope *
-                (_tokensToBuy *
-                    (_tokensToBuy + 1) +
-                    2 *
-                    totalSupply() *
-                    _tokensToBuy)) / 2;
+        uint totalSup= totalSupply();
+        uint totalSupp=totalSup+_tokensToBuy;
+        return auc(totalSupp)-auc(totalSup);
     }
-
+/**
+     * @dev calculates area under the curve 
+     * @param x value of x
+     */
+    function auc(uint x) internal view returns (uint256) {
+        return (_slope * (x ** 2)) / 2 ;
+    }
     /**
      * @dev Calculates the price for selling a certain number of tokens based on the bonding curve formula.
      * @param _tokensToSell The number of tokens to sell.
@@ -116,14 +131,9 @@ contract BondingCurveToken is ERC20, Ownable {
     function _calculatePriceForSell(
         uint256 _tokensToSell
     ) private view returns (uint256) {
-        uint totalSupply = totalSupply();
-        if (_tokensToSell > totalSupply) {
-            _tokensToSell = totalSupply;
-        }
-        return
-            _slope *
-            ((_tokensToSell * (totalSupply + totalSupply - _tokensToSell + 1)) /
-                2);
+        uint totalSup= totalSupply();
+        uint totalSupp=totalSup-_tokensToSell;
+        return auc(totalSup)-auc(totalSupp);
     }
 
     /**
@@ -133,5 +143,8 @@ contract BondingCurveToken is ERC20, Ownable {
      */
     function _calculateLoss(uint256 amount) private pure returns (uint256) {
         return (amount * _LOSS_FEE_PERCENTAGE) / (1E4);
+    }
+     function viewTax() external view onlyOwner returns (uint256) {
+        return _tax;
     }
 }
