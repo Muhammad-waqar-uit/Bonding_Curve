@@ -4,12 +4,8 @@ pragma solidity ^0.8.17;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-
-error LowBalance(uint amount,uint balance);
-error LowTokenBalance(uint amount,uint balance);
-
 contract BondingCurveToken is ERC20, Ownable {
-    uint256 private _tax;
+    uint256 private _loss;
 
     uint256 private immutable _slope;
 
@@ -36,12 +32,9 @@ contract BondingCurveToken is ERC20, Ownable {
      */
     function buy(uint256 _amount) external payable {
         uint price = _calculatePriceForBuy(_amount);
-        if(msg.value<price){
-            revert LowBalance(msg.value,address(msg.sender).balance);
-        }
+        require(msg.value >= price, "Not enough Ether to buy tokens");
         _mint(msg.sender, _amount);
-        (bool sent,) = payable(msg.sender).call{value: msg.value - price}("");
-        require(sent, "Failed to send Ether");
+        payable(msg.sender).transfer(msg.value - price);
     }
 
     /**
@@ -49,29 +42,23 @@ contract BondingCurveToken is ERC20, Ownable {
      * @param _amount The number of tokens to sell.
      */
     function sell(uint256 _amount) external {
-        if(balanceOf(msg.sender)<_amount){
-            revert LowTokenBalance(_amount,balanceOf(msg.sender));
-        }
+        require(balanceOf(msg.sender) >= _amount, "Not enough tokens to sell");
         uint256 _price = _calculatePriceForSell(_amount);
         uint tax = _calculateLoss(_price);
         _burn(msg.sender, _amount);
-        _tax += tax;
-        //sending remaining ether back
-        (bool sent,) = payable(msg.sender).call{value: _price-tax}("");
-        require(sent, "Failed to send Ether");
+        _loss += tax;
+
+        payable(msg.sender).transfer(_price - tax);
     }
 
     /**
      * @dev Allows the owner to withdraw the lost ETH.
      */
     function withdraw() external onlyOwner {
-        if(_tax<=0){
-            revert LowBalance(_tax,_tax);
-        }
-        uint amount = _tax;
-        _tax = 0;
-        (bool sent,) = payable(msg.sender).call{value:amount}("");
-        require(sent, "Failed to send Ether");
+        require(_loss > 0, "No ETH to withdraw");
+        uint amount = _loss;
+        _loss = 0;
+        payable(owner()).transfer(amount);
     }
 
     /**
@@ -112,17 +99,13 @@ contract BondingCurveToken is ERC20, Ownable {
     function _calculatePriceForBuy(
         uint256 _tokensToBuy
     ) private view returns (uint256) {
-        uint totalSup= totalSupply();
-        uint totalSupp=totalSup+_tokensToBuy;
-        return auc(totalSupp)-auc(totalSup);
+        //total supply
+        uint ts=totalSupply();
+        //total supply after
+        uint tsafter=ts+_tokensToBuy;
+        return areaundercurve(tsafter)-areaundercurve(ts);
     }
-/**
-     * @dev calculates area under the curve 
-     * @param x value of x
-     */
-    function auc(uint x) internal view returns (uint256) {
-        return (_slope * (x ** 2)) / 2 ;
-    }
+
     /**
      * @dev Calculates the price for selling a certain number of tokens based on the bonding curve formula.
      * @param _tokensToSell The number of tokens to sell.
@@ -131,11 +114,16 @@ contract BondingCurveToken is ERC20, Ownable {
     function _calculatePriceForSell(
         uint256 _tokensToSell
     ) private view returns (uint256) {
-        uint totalSup= totalSupply();
-        uint totalSupp=totalSup-_tokensToSell;
-        return auc(totalSup)-auc(totalSupp);
+        //total supply
+        uint ts=totalSupply();
+        //total supply after
+        uint tsafter=ts-_tokensToSell;
+        return areaundercurve(ts)-areaundercurve(tsafter);
     }
 
+    function areaundercurve(uint x)internal view returns(uint256){
+        return (_slope*(x**2))/2;
+    }
     /**
      * @dev Calculates the loss for selling a certain number of tokens.
      * @param amount The price of the tokens being sold.
@@ -144,7 +132,8 @@ contract BondingCurveToken is ERC20, Ownable {
     function _calculateLoss(uint256 amount) private pure returns (uint256) {
         return (amount * _LOSS_FEE_PERCENTAGE) / (1E4);
     }
-     function viewTax() external view onlyOwner returns (uint256) {
-        return _tax;
+
+      function viewloss() external view onlyOwner returns (uint256) {
+        return _loss;
     }
 }
