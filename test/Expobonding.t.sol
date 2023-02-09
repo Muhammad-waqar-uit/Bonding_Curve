@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "src/LinearBonding.sol";
+import "src/ExpoBonding.sol";
 import "lib/forge-std/src/Test.sol";
 
-contract TokenBondingCurve_LinearTest is Test {
-    BondingCurveToken public TBLC;     
+contract TokenBondingCurve_ExponentialTest is Test {
+    TokenBondingCurve_Expo public TBEC;     
     address user = address(1);
     address deployer = address(2);
 
     function setUp() public {
         vm.prank(deployer);
-        TBLC = new BondingCurveToken("MTKN", "M", 2);
+        TBEC = new TokenBondingCurve_Expo("ETKN", "EXpo", 2);
     }
 
     function testBuy() public {
         uint amount = 5;
-        uint oldBal = address(TBLC).balance;
-        uint val = TBLC.calculatePriceForBuy(amount);
+        uint oldBal = address(TBEC).balance;
+        uint val = TBEC.calculatePriceForBuy(amount);
         vm.deal(user, 1 ether);
         vm.startPrank(user);
-        TBLC.buy{value: val}(amount);
-        assertEq(TBLC.totalSupply(), amount);
-        assertEq(address(TBLC).balance, oldBal + val);
+        TBEC.buy{value: val}(amount);
+        assertEq(TBEC.totalSupply(), amount);
+        assertEq(address(TBEC).balance, oldBal + val);
         vm.stopPrank();
     }
 
@@ -32,19 +32,19 @@ contract TokenBondingCurve_LinearTest is Test {
         );
         // vm.expectRevert("LowOnEther(0, 0)");
         vm.startPrank(user);
-        TBLC.buy(5);
+        TBEC.buy(5);
         vm.stopPrank();
     }
 
      function testBuyrandom(uint amount) public {
         vm.assume(amount > 0 && amount < 3000000000);
-        uint oldBal = address(TBLC).balance;
-        uint val = TBLC.calculatePriceForBuy(amount);
+        uint oldBal = address(TBEC).balance;
+        uint val = TBEC.calculatePriceForBuy(amount);
         vm.deal(user, 1000000000000000000000 ether);
         vm.startPrank(user);
-        TBLC.buy{value: val}(amount);
-        assertEq(TBLC.totalSupply(), amount);
-        assertEq(address(TBLC).balance, oldBal + val);
+        TBEC.buy{value: val}(amount);
+        assertEq(TBEC.totalSupply(), amount);
+        assertEq(address(TBEC).balance, oldBal + val);
         vm.stopPrank();
     }
      function testNot_Selling_Token() public {
@@ -52,7 +52,7 @@ contract TokenBondingCurve_LinearTest is Test {
             abi.encodeWithSelector(LowTokenBalance.selector, 6, 0)
         );
         vm.startPrank(user);
-        TBLC.sell(6);
+        TBEC.sell(6);
         vm.stopPrank();
     }
 
@@ -61,19 +61,19 @@ contract TokenBondingCurve_LinearTest is Test {
             abi.encodeWithSelector(LowOnEther.selector, 0, 0)
         );
         vm.startPrank(deployer);
-        TBLC.withdraw();
+        TBEC.withdraw();
         vm.stopPrank();
     }
 
     function systemcheck_random(uint amount)public{
         vm.assume(amount>0 && amount <=8000000);
-        uint oldbal=address(TBLC).balance;
-    uint val=TBLC.calculatePriceForBuy(amount);
+        uint oldbal=address(TBEC).balance;
+    uint val=TBEC.calculatePriceForBuy(amount);
     vm.deal(user,10000000000000000000000000000000000 ether);
 
     vm.prank(user);
-    TBLC.buy{value:val}(amount);
-    assertEq(TBLC.totalSupply(), amount);
-    assertEq(address(TBLC).balance,oldbal+val);
+    TBEC.buy{value:val}(amount);
+    assertEq(TBEC.totalSupply(), amount);
+    assertEq(address(TBEC).balance,oldbal+val);
     }
 }

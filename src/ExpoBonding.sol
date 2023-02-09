@@ -3,7 +3,8 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-
+error LowTokenBalance(uint amount,uint tokenbalance);
+error LowOnEther(uint amount,uint tokenbalance);
 contract TokenBondingCurve_Expo is ERC20, Ownable {
     uint256 private _loss;
 
@@ -20,9 +21,12 @@ contract TokenBondingCurve_Expo is ERC20, Ownable {
     }
     function buy(uint256 _amount) external payable {
         uint price = _calculatePriceForBuy(_amount);
-        require(msg.value >= price, "Not enough Ether to buy tokens");
+        if(msg.value<price){
+            revert LowOnEther(msg.value,address(msg.sender).balance);
+        }
         _mint(msg.sender, _amount);
-        payable(msg.sender).transfer(msg.value - price);
+         (bool sent,) = payable(msg.sender).call{value: msg.value - price}("");
+        require(sent, "Failed to send Ether");
     }
 
     /**
@@ -30,22 +34,29 @@ contract TokenBondingCurve_Expo is ERC20, Ownable {
      * @param _amount The number of tokens to sell.
      */
     function sell(uint256 _amount) external {
-        require(balanceOf(msg.sender) >= _amount, "Not enough tokens to sell");
+        if(balanceOf(msg.sender)<_amount){
+            revert LowTokenBalance(_amount,balanceOf(msg.sender));
+        }
         uint256 _price = _calculatePriceForSell(_amount);
         uint tax = _calculateLoss(_price);
         _burn(msg.sender, _amount);
         _loss += tax;
-        payable(msg.sender).transfer(_price - tax);
+
+       (bool sent,) = payable(msg.sender).call{value: _price - tax}("");
+        require(sent, "Failed to send Ether");
     }
 
     /**
      * @dev Allows the owner to withdraw the lost ETH.
      */
     function withdraw() external onlyOwner {
-        require(_loss > 0, "No ETH to withdraw");
+        if(_loss<=0){
+            revert LowOnEther(_loss,_loss);
+        }
         uint amount = _loss;
         _loss = 0;
-        payable(owner()).transfer(amount);
+        (bool sent,) = payable(owner()).call{value: amount}("");
+        require(sent, "Failed to send Ether");
     }
 
     /**
