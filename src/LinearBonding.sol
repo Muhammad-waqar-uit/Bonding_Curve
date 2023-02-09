@@ -134,7 +134,7 @@ contract BondingCurveToken is ERC20, Ownable {
     }
 
     function areaundercurve(uint x)internal view returns(uint256){
-        return (_slope*(x**2))/2;
+                return(_slope*(x**2))/2;
     }
     /**
      * @dev Calculates the loss for selling a certain number of tokens.
