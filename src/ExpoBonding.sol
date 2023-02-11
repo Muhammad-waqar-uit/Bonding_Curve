@@ -120,7 +120,7 @@ contract TokenBondingCurve_Expo is ERC20, Ownable {
     }
 
     function areaundercurve(uint x)internal view returns(uint256){
-         return (x **(_exponent + 1)) / _exponent + 1 ;
+         return (x **(_exponent + 2)) / _exponent + 2 ;
     }
     /**
      * @dev Calculates the loss for selling a certain number of tokens.

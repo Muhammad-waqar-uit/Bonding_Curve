@@ -122,7 +122,7 @@ contract TokenBondingCurve_polynomial is ERC20, Ownable {
     }
 
    function areaundercurve(uint x) internal view returns (uint256) {
-        uint _exp_inc = _exponent + 1;
+        uint _exp_inc = _exponent + 2;
         return ((x **_exp_inc) + (_exp_inc * _constant * x)) / _exp_inc ;
     }
     /**

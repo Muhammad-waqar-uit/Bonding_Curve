@@ -11,7 +11,7 @@ contract TokenBondingCurve_LinearTest is Test {
 
     function setUp() public {
         vm.prank(deployer);
-        TBLC = new BondingCurveToken("MTKN", "M", 2);
+        TBLC = new BondingCurveToken("MTKN", "M", 1,3400000000000);
     }
 
     function testBuy() public {
@@ -49,7 +49,7 @@ contract TokenBondingCurve_LinearTest is Test {
     }
      function testNot_Selling_Token() public {
         vm.expectRevert(
-            abi.encodeWithSelector(LowTokenBalance.selector, 6, 0)
+            abi.encodeWithSelector(LowonBalance.selector, 6, 0)
         );
         vm.startPrank(user);
         TBLC.sell(6);

@@ -42,7 +42,7 @@ contract TokenBondingCurve_PolyTest is Test {
         uint val = TBPC.calculatePriceForBuy(amount);
         vm.deal(user, 1000000000000000000000 ether);
         vm.startPrank(user);
-        TBLC.buy{value: val}(amount);
+        TBPC.buy{value: val}(amount);
         assertEq(TBPC.totalSupply(), amount);
         assertEq(address(TBPC).balance, oldBal + val);
         vm.stopPrank();
